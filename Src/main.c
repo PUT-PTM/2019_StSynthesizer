@@ -43,6 +43,7 @@
 #include "stm32f4xx_hal.h"
 #include "MY_CS43L22.h"
 #include <math.h>
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -82,7 +83,7 @@ TIM_HandleTypeDef htim2;
 #define	F_OUT 1000.0f
 
 // current pin
-uint16_t pins[2];
+uint16_t pins[3];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,8 +102,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	if(GPIO_Pin == note_2_Pin) {
 		pins[1] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2);
 	}
+	if(GPIO_Pin == note_3_Pin) {
+		pins[2] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
+	}
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1));
 	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2));
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3));
 }
 /* USER CODE END PFP */
 
@@ -112,7 +117,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 float mySinVal;
 float sample_dt;
 uint16_t sample_N;
-uint16_t i_t[2];
+uint16_t i_t[3];
 
 uint32_t DACVal;
 
@@ -159,7 +164,7 @@ int main(void)
 
   // Audio stream initiazlization
   CS43_Init(hi2c1, MODE_ANALOG);
-  CS43_SetVolume(35);
+  CS43_SetVolume(40);
   CS43_Enable_RightLeft(CS43_RIGHT_LEFT);
   CS43_Start();
 
@@ -419,8 +424,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15 
                           |GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : note_1_Pin note_2_Pin */
-  GPIO_InitStruct.Pin = note_1_Pin|note_2_Pin;
+  /*Configure GPIO pins : note_1_Pin note_2_Pin note_3_Pin */
+  GPIO_InitStruct.Pin = note_1_Pin|note_2_Pin|note_3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -441,6 +446,9 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -449,7 +457,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 	if(htim->Instance == TIM2) {
 		if(pins[0]) {
-			mySinVal = sinf(i_t[0] * 6 * PI * sample_dt);
+			mySinVal = sinf(i_t[0] * 2 * PI * sample_dt);
 			DACVal = (mySinVal + 1) * 127;
 			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, DACVal);
 
@@ -460,13 +468,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		}
 
 		if(pins[1]) {
-			mySinVal = sinf(i_t[1] * 4 * PI * sample_dt);
+			mySinVal = sinf(i_t[1] * 2 * PI * sample_dt);
 			DACVal = (mySinVal + 1) * 127;
 			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACVal);
 
-			i_t[1]++;
+			i_t[1]+=2;
 			if(i_t[1] >= sample_N) {
 				i_t[1] = 0;
+			}
+		}
+
+		if(pins[2]) {
+			mySinVal = sinf(i_t[2] * 2 * PI * sample_dt);
+			DACVal = (mySinVal + 1) * 127;
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACVal);
+
+			i_t[2]+=3;
+			if(i_t[2] >= sample_N) {
+				i_t[2] = 0;
 			}
 		}
 	}

@@ -84,6 +84,9 @@ void Error_Handler(void);
 #define note_2_Pin GPIO_PIN_2
 #define note_2_GPIO_Port GPIOA
 #define note_2_EXTI_IRQn EXTI2_IRQn
+#define note_3_Pin GPIO_PIN_3
+#define note_3_GPIO_Port GPIOA
+#define note_3_EXTI_IRQn EXTI3_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
