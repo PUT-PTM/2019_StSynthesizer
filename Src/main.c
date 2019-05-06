@@ -43,6 +43,7 @@
 #include "stm32f4xx_hal.h"
 #include "MY_CS43L22.h"
 #include <math.h>
+#include "sounds.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -65,6 +66,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 DAC_HandleTypeDef hdac;
 
 I2C_HandleTypeDef hi2c1;
@@ -77,13 +80,18 @@ TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN PV */
 // PI Definition
 #define PI 3.14159f
+#define NOTES 12
 
 // Sample rate and output frequency
-#define F_SAMPLE 50000.0f
-#define	F_OUT 1000.0f
+#define F_BASE 48000.0f
+
+float volume;
 
 // current pin
-uint16_t pins[3];
+uint8_t pins[NOTES];
+uint16_t i_t[NOTES];
+uint16_t ii = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,39 +99,67 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_ADC1_Init(void);
 static void MX_I2S3_Init(void);
-static void MX_DAC_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_DAC_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	if(GPIO_Pin == note_1_Pin) {
-		pins[0] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1);
+	if(GPIO_Pin == NOTE_1_Pin) {
+		pins[0] = HAL_GPIO_ReadPin(GPIOA, NOTE_1_Pin);
 	}
-	if(GPIO_Pin == note_2_Pin) {
-		pins[1] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2);
+	if(GPIO_Pin == NOTE_2_Pin) {
+		pins[1] = HAL_GPIO_ReadPin(GPIOA, NOTE_2_Pin);
 	}
-	if(GPIO_Pin == note_3_Pin) {
-		pins[2] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
+	if(GPIO_Pin == NOTE_3_Pin) {
+		pins[2] = HAL_GPIO_ReadPin(GPIOA, NOTE_3_Pin);
 	}
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1));
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_2));
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3));
+	if(GPIO_Pin == NOTE_4_Pin) {
+		pins[3] = HAL_GPIO_ReadPin(GPIOA, NOTE_4_Pin);
+	}
+	if(GPIO_Pin == NOTE_5_Pin) {
+		pins[4] = HAL_GPIO_ReadPin(GPIOA, NOTE_5_Pin);
+	}
+	if(GPIO_Pin == NOTE_6_Pin) {
+		pins[5] = HAL_GPIO_ReadPin(GPIOA, NOTE_6_Pin);
+	}
+	if(GPIO_Pin == NOTE_7_Pin) {
+		pins[6] = HAL_GPIO_ReadPin(GPIOC, NOTE_7_Pin);
+	}
+	if(GPIO_Pin == NOTE_8_Pin) {
+		pins[7] = HAL_GPIO_ReadPin(GPIOE, NOTE_8_Pin);
+	}
+	if(GPIO_Pin == NOTE_9_Pin) {
+		pins[8] = HAL_GPIO_ReadPin(GPIOE, NOTE_9_Pin);
+	}
+	if(GPIO_Pin == NOTE_10_Pin) {
+		pins[9] = HAL_GPIO_ReadPin(GPIOE, NOTE_10_Pin);
+	}
+	if(GPIO_Pin == NOTE_11_Pin) {
+		pins[10] = HAL_GPIO_ReadPin(GPIOE, NOTE_11_Pin);
+	}
+	if(GPIO_Pin == NOTE_12_Pin) {
+		pins[11] = HAL_GPIO_ReadPin(GPIOE, NOTE_12_Pin);
+	}
 }
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // used to generate sound
-float mySinVal;
-float sample_dt;
-uint16_t sample_N;
-uint16_t i_t[3];
-
-uint32_t DACVal;
-
 int16_t I2S_dummy[4];
+float sinVal;
 
-extern const uint8_t rawAudio[123200];
+
+int keysPressed() {
+	int out = 0;
+
+	for(int i = 0; i < NOTES; i++) {
+		if(pins[i]) out++;
+	}
+
+	return out;
+}
 /* USER CODE END 0 */
 
 /**
@@ -133,8 +169,7 @@ extern const uint8_t rawAudio[123200];
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	sample_dt = F_OUT/F_SAMPLE;
-	sample_N = F_SAMPLE/F_OUT;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -157,9 +192,10 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_I2C1_Init();
+  MX_ADC1_Init();
   MX_I2S3_Init();
-  MX_DAC_Init();
   MX_TIM2_Init();
+  MX_DAC_Init();
   /* USER CODE BEGIN 2 */
 
   // Audio stream initiazlization
@@ -168,13 +204,13 @@ int main(void)
   CS43_Enable_RightLeft(CS43_RIGHT_LEFT);
   CS43_Start();
 
-  // Starting DAC
+  // Start timer 2
   HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
 
-  // Start TIM2
   HAL_TIM_Base_Start_IT(&htim2);
 
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)I2S_dummy, 4);
+
 
   /* USER CODE END 2 */
 
@@ -182,6 +218,17 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	  HAL_ADC_Start(&hadc1);
+
+	  if(HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
+	  {
+	      volume = (float)HAL_ADC_GetValue(&hadc1)/4095.0f;
+	      CS43_SetVolume(ceil(40.0f * volume));
+	  }
+
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -237,6 +284,56 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
+  */
+  sConfig.Channel = ADC_CHANNEL_10;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -364,9 +461,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 84-1;
+  htim2.Init.Prescaler = 35-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 20-1;
+  htim2.Init.Period = 50-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
@@ -377,7 +474,7 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
@@ -415,31 +512,48 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15 
-                          |GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : note_1_Pin note_2_Pin note_3_Pin */
-  GPIO_InitStruct.Pin = note_1_Pin|note_2_Pin|note_3_Pin;
+  /*Configure GPIO pins : NOTE_1_Pin NOTE_2_Pin NOTE_3_Pin NOTE_4_Pin 
+                           NOTE_5_Pin NOTE_6_Pin */
+  GPIO_InitStruct.Pin = NOTE_1_Pin|NOTE_2_Pin|NOTE_3_Pin|NOTE_4_Pin 
+                          |NOTE_5_Pin|NOTE_6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD12 PD13 PD14 PD15 
-                           PD4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15 
-                          |GPIO_PIN_4;
+  /*Configure GPIO pin : NOTE_7_Pin */
+  GPIO_InitStruct.Pin = NOTE_7_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(NOTE_7_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : NOTE_8_Pin NOTE_9_Pin NOTE_10_Pin NOTE_11_Pin 
+                           NOTE_12_Pin */
+  GPIO_InitStruct.Pin = NOTE_8_Pin|NOTE_9_Pin|NOTE_10_Pin|NOTE_11_Pin 
+                          |NOTE_12_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
@@ -449,6 +563,15 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -456,38 +579,23 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	UNUSED(htim);
 
 	if(htim->Instance == TIM2) {
-		if(pins[0]) {
-			mySinVal = sinf(i_t[0] * 2 * PI * sample_dt);
-			DACVal = (mySinVal + 1) * 127;
-			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, DACVal);
-
-			i_t[0]++;
-			if(i_t[0] >= sample_N) {
-				i_t[0] = 0;
-			}
+		if(keysPressed() == 0) {
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, 0);
 		}
+	  if(pins[0]) {
+		  float freq = 440.0f;
 
-		if(pins[1]) {
-			mySinVal = sinf(i_t[1] * 2 * PI * sample_dt);
-			DACVal = (mySinVal + 1) * 127;
-			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACVal);
+		  sinVal = sinf(2 * PI * freq * ii / F_BASE) + 1.0f;
 
-			i_t[1]+=2;
-			if(i_t[1] >= sample_N) {
-				i_t[1] = 0;
-			}
-		}
+		  uint16_t DACOut = sinVal * 127;
 
-		if(pins[2]) {
-			mySinVal = sinf(i_t[2] * 2 * PI * sample_dt);
-			DACVal = (mySinVal + 1) * 127;
-			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACVal);
+		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
 
-			i_t[2]+=3;
-			if(i_t[2] >= sample_N) {
-				i_t[2] = 0;
-			}
-		}
+		  ii++;
+		  if(ii > 48000.0f/440.0f) {
+			  ii = 0;
+		  }
+	  }
 	}
 }
 

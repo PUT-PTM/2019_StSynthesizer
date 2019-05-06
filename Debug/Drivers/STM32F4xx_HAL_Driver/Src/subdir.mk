@@ -5,6 +5,8 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c \
+../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac.c \
 ../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac_ex.c \
@@ -27,6 +29,8 @@ C_SRCS += \
 
 OBJS += \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.o \
+./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.o \
+./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.o \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.o \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac.o \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac_ex.o \
@@ -49,6 +53,8 @@ OBJS += \
 
 C_DEPS += \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.d \
+./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.d \
+./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.d \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.d \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac.d \
 ./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac_ex.d \
@@ -75,7 +81,7 @@ Drivers/STM32F4xx_HAL_Driver/Src/%.o: ../Drivers/STM32F4xx_HAL_Driver/Src/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: MCU GCC Compiler'
 	@echo $(PWD)
-	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 '-D__weak=__attribute__((weak))' '-D__packed=__attribute__((__packed__))' -DUSE_HAL_DRIVER -DSTM32F407xx -I"D:/Nikodem/materialy studia/4 semestr/PTM_Projekt/2019_StSynthesizer-master/Inc" -I"D:/Nikodem/materialy studia/4 semestr/PTM_Projekt/2019_StSynthesizer-master/Drivers/STM32F4xx_HAL_Driver/Inc" -I"D:/Nikodem/materialy studia/4 semestr/PTM_Projekt/2019_StSynthesizer-master/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy" -I"D:/Nikodem/materialy studia/4 semestr/PTM_Projekt/2019_StSynthesizer-master/Drivers/CMSIS/Device/ST/STM32F4xx/Include" -I"D:/Nikodem/materialy studia/4 semestr/PTM_Projekt/2019_StSynthesizer-master/Drivers/CMSIS/Include"  -Og -g3 -Wall -fmessage-length=0 -ffunction-sections -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
+	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 '-D__weak=__attribute__((weak))' '-D__packed=__attribute__((__packed__))' -DUSE_HAL_DRIVER -DSTM32F407xx -I"C:/Users/kusio/Documents/GitHub/2019_StSynthesizer/Inc" -I"C:/Users/kusio/Documents/GitHub/2019_StSynthesizer/Drivers/STM32F4xx_HAL_Driver/Inc" -I"C:/Users/kusio/Documents/GitHub/2019_StSynthesizer/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy" -I"C:/Users/kusio/Documents/GitHub/2019_StSynthesizer/Drivers/CMSIS/Device/ST/STM32F4xx/Include" -I"C:/Users/kusio/Documents/GitHub/2019_StSynthesizer/Drivers/CMSIS/Include"  -Og -g3 -Wall -fmessage-length=0 -ffunction-sections -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

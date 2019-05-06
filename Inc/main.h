@@ -78,15 +78,42 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define note_1_Pin GPIO_PIN_1
-#define note_1_GPIO_Port GPIOA
-#define note_1_EXTI_IRQn EXTI1_IRQn
-#define note_2_Pin GPIO_PIN_2
-#define note_2_GPIO_Port GPIOA
-#define note_2_EXTI_IRQn EXTI2_IRQn
-#define note_3_Pin GPIO_PIN_3
-#define note_3_GPIO_Port GPIOA
-#define note_3_EXTI_IRQn EXTI3_IRQn
+#define NOTE_1_Pin GPIO_PIN_0
+#define NOTE_1_GPIO_Port GPIOA
+#define NOTE_1_EXTI_IRQn EXTI0_IRQn
+#define NOTE_2_Pin GPIO_PIN_1
+#define NOTE_2_GPIO_Port GPIOA
+#define NOTE_2_EXTI_IRQn EXTI1_IRQn
+#define NOTE_3_Pin GPIO_PIN_2
+#define NOTE_3_GPIO_Port GPIOA
+#define NOTE_3_EXTI_IRQn EXTI2_IRQn
+#define NOTE_4_Pin GPIO_PIN_3
+#define NOTE_4_GPIO_Port GPIOA
+#define NOTE_4_EXTI_IRQn EXTI3_IRQn
+#define NOTE_5_Pin GPIO_PIN_5
+#define NOTE_5_GPIO_Port GPIOA
+#define NOTE_5_EXTI_IRQn EXTI9_5_IRQn
+#define NOTE_6_Pin GPIO_PIN_7
+#define NOTE_6_GPIO_Port GPIOA
+#define NOTE_6_EXTI_IRQn EXTI9_5_IRQn
+#define NOTE_7_Pin GPIO_PIN_4
+#define NOTE_7_GPIO_Port GPIOC
+#define NOTE_7_EXTI_IRQn EXTI4_IRQn
+#define NOTE_8_Pin GPIO_PIN_8
+#define NOTE_8_GPIO_Port GPIOE
+#define NOTE_8_EXTI_IRQn EXTI9_5_IRQn
+#define NOTE_9_Pin GPIO_PIN_9
+#define NOTE_9_GPIO_Port GPIOE
+#define NOTE_9_EXTI_IRQn EXTI9_5_IRQn
+#define NOTE_10_Pin GPIO_PIN_10
+#define NOTE_10_GPIO_Port GPIOE
+#define NOTE_10_EXTI_IRQn EXTI15_10_IRQn
+#define NOTE_11_Pin GPIO_PIN_11
+#define NOTE_11_GPIO_Port GPIOE
+#define NOTE_11_EXTI_IRQn EXTI15_10_IRQn
+#define NOTE_12_Pin GPIO_PIN_12
+#define NOTE_12_GPIO_Port GPIOE
+#define NOTE_12_EXTI_IRQn EXTI15_10_IRQn
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
