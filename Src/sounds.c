@@ -1,129 +1,134 @@
 #include "stm32f4xx_hal.h"
 #include "sounds.h"
 #include <math.h>
+#include <stdlib.h>
 
-uint8_t currentOctave = 1;
-int16_t waveData[I2S_DATA_SIZE];
+uint8_t currentOctave = 4;
 float audioFreqRoot = powf(2.0f, 1.0f/12.0f);
 
 // used to generate correct output of different waves
-float omega(freq) {
-	return 2 * PI * freq/F_BASE;
+float omega(float freq) {
+	return 2.0f * PI * freq/F_BASE;
 }
 
 // used to generate sound of different waves
-void generateSinWave(freq) {
+float generateSinWave(float freq, uint16_t time) {
 	float w = omega(freq);
-	float val;
-	for(uint16_t i = 0; i < F_BASE/freq; i++) {
-		val = sinf(i * w);
-		waveData[i*2] = (val) * 8000;
-		waveData[i * 2 + 1] = (val) * 8000;
-	}
+	float val = sinf(w * time);
+	return val;
 }
 
-void generateSquareWave(freq) {
+float generateSquareWave(float freq, uint16_t time) {
 	float w = omega(freq);
-	float val;
-	for(uint16_t i = 0; i < F_BASE/freq; i++) {
-		val = sinf(i * w);
-		waveData[i*2] = ((val > 0)? 1:-1) * 8000;
-		waveData[i * 2 + 1] = ((val > 0)? 1:-1) * 8000;
-	}
+	float val = sinf(w * time);
+	val = (val >= 0)? 1: -1;
+	return val;
 }
 
-void generateTriangleWave(freq) {
+float generateTriangleWave(float freq, uint16_t time) {
 	float w = omega(freq);
-	float val;
-	for(uint16_t i = 0; i < F_BASE/freq; i++) {
-		val = asinf(sinf(i * w));
-		waveData[i*2] = ((val > 0)? 1:-1) * 8000;
-		waveData[i * 2 + 1] = ((val > 0)? 1:-1) * 8000;
-	}
+	float val = asinf(sinf(w * time)) * (2.0f/PI);
+	return val;
+
 }
 
-void generateSawAnalogueWave(freq) {
+float generateSawAnalogWave(float freq, uint16_t time) {
 	float w = omega(freq);
-	float val = 0;
-	for(uint16_t i = 0; i < F_BASE/freq; i++) {
-		val += (sinf(i * w)) / (float)i;
-		waveData[i*2] = ((val > 0)? 1:-1) * 8000;
-		waveData[i * 2 + 1] = ((val > 0)? 1:-1) * 8000;
+	float val = 0.0f;
+
+	for (float n = 1.0f; n < 30.0f; n++) {
+		val += (sinf(n * w * time)) / n;
 	}
+
+	return -(val * (2.0f / PI));
 }
 
-void osc(float freq, OSC_TYPE type) {
+float generateNoise() {
+	float val = 2.0f * ((float) rand() / (float) RAND_MAX) - 1.0f;
+	return val;
+}
+
+float osc(float freq, uint16_t time, OSC_TYPE type) {
 	switch(type) {
 	case SIN:
-		return generateSinWave(freq);
+		return generateSinWave(freq, time);
 	case SQUARE:
-		return generateSquareWave(freq);
+		return generateSquareWave(freq, time);
 	case TRIANGLE:
-		return generateTriangleWave(freq);
+		return generateTriangleWave(freq, time);
 	case SAW_AN:
-		return generateSawAnalogueWave(freq);
+		return generateSawAnalogWave(freq, time);
+	case NOISE:
+		return generateNoise();
 	default:
-		return;
+		return 0;
 	}
 }
 
-void synthesizeSound(freq) {
-	osc(freq, SIN);
+float synthesizeSound(float freq, uint16_t time) {
+	return osc(freq, time, SAW_AN);
 }
 
 /* We generate the array of sounds */
-void generateWaves(Note s) {
+float generateWaves(Note s, unsigned long time) {
 	float freq;
 
+	uint16_t modTime;
+
 	switch(s) {
+	case TEST:
+		freq = 1.0f;
+		modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case C:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 3);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 3);
+        modTime = time%(unsigned long)(F_BASE/freq);
+        return synthesizeSound(freq, modTime);
 	case Cs:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 4);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 4);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case D:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 5);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 5);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case Ds:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 6);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 6);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case E:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 7);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 7);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case F:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 8);
-		return synthesizeSound(freq);
-		break;
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 8);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case Fs:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 9);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 9);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case G:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 10);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 10);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case Gs:
-		freq = BASE_A_FREQ * powf(audioFreqRoot, 11);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave)) * powf(audioFreqRoot, 11);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case A:
-		freq = (BASE_A_FREQ * (currentOctave + 1)) * powf(audioFreqRoot, 0);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave + 1)) * powf(audioFreqRoot, 0);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case Bf:
-		freq = (BASE_A_FREQ * (currentOctave + 1)) * powf(audioFreqRoot, 1);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave + 1)) * powf(audioFreqRoot, 1);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	case B:
-		freq = (BASE_A_FREQ * (currentOctave + 1)) * pow(audioFreqRoot, 2);
-		return synthesizeSound(freq);
+		freq = (BASE_A_FREQ * powf(2, currentOctave + 1)) * powf(audioFreqRoot, 2);
+        modTime = time%(unsigned long)(F_BASE/freq);
+		return synthesizeSound(freq, modTime);
 	default:
-		return;
+		return 0.0f;
 	}
-}
-
-void mute(I2S_HandleTypeDef hi2s3) {
-	HAL_I2S_DMAStop(&hi2s3);
-
-	for(int i = 0; i < I2S_DATA_SIZE; i++) {
-		waveData[i] = 0;
-	}
-
-	HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)waveData, 2);
 }

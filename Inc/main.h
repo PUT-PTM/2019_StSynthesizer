@@ -100,19 +100,19 @@ void Error_Handler(void);
 #define NOTE_7_GPIO_Port GPIOC
 #define NOTE_7_EXTI_IRQn EXTI4_IRQn
 #define NOTE_8_Pin GPIO_PIN_8
-#define NOTE_8_GPIO_Port GPIOE
+#define NOTE_8_GPIO_Port GPIOD
 #define NOTE_8_EXTI_IRQn EXTI9_5_IRQn
 #define NOTE_9_Pin GPIO_PIN_9
-#define NOTE_9_GPIO_Port GPIOE
+#define NOTE_9_GPIO_Port GPIOD
 #define NOTE_9_EXTI_IRQn EXTI9_5_IRQn
 #define NOTE_10_Pin GPIO_PIN_10
-#define NOTE_10_GPIO_Port GPIOE
+#define NOTE_10_GPIO_Port GPIOD
 #define NOTE_10_EXTI_IRQn EXTI15_10_IRQn
 #define NOTE_11_Pin GPIO_PIN_11
-#define NOTE_11_GPIO_Port GPIOE
+#define NOTE_11_GPIO_Port GPIOD
 #define NOTE_11_EXTI_IRQn EXTI15_10_IRQn
 #define NOTE_12_Pin GPIO_PIN_12
-#define NOTE_12_GPIO_Port GPIOE
+#define NOTE_12_GPIO_Port GPIOD
 #define NOTE_12_EXTI_IRQn EXTI15_10_IRQn
 /* USER CODE BEGIN Private defines */
 
