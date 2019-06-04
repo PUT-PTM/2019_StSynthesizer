@@ -54,4 +54,4 @@ You can check all pins in STM32CubeMX.
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License.
