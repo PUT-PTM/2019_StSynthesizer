@@ -44,6 +44,7 @@
 #include "MY_CS43L22.h"
 #include <math.h>
 #include "sounds.h"
+#include "key.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -66,7 +67,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
 
 DAC_HandleTypeDef hdac;
 
@@ -80,32 +81,78 @@ TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 #define NOTES 12
+#define KEYS 18
 float volume;
 
-float testix;
+int key = 0;
+
+float pressed;
+uint16_t DACOut;
 
 unsigned long time;
 
 // current pin
 uint8_t pins[NOTES];
+uint8_t keys_pressed[3];
+uint16_t debounce_pins_0[NOTES + 3];
+uint16_t debounce_pins_1[NOTES + 3];
 uint16_t i_t[NOTES];
-uint16_t ii = 0;
+float sumValues[NOTES];
 
+Key keys[KEYS];
+uint8_t notes_keys[NOTES];
+NoteEnvelope envelopes[NOTES];
 
+/*
 void checkNotes() {
-	pins[0] = HAL_GPIO_ReadPin(GPIOA, NOTE_1_Pin);
-	pins[1] = HAL_GPIO_ReadPin(GPIOA, NOTE_2_Pin);
-	pins[2] = HAL_GPIO_ReadPin(GPIOA, NOTE_3_Pin);
-	pins[3] = HAL_GPIO_ReadPin(GPIOA, NOTE_4_Pin);
-	pins[4] = HAL_GPIO_ReadPin(GPIOA, NOTE_5_Pin);
-	pins[5] = HAL_GPIO_ReadPin(GPIOA, NOTE_6_Pin);
-	pins[6] = HAL_GPIO_ReadPin(GPIOC, NOTE_7_Pin);
-	pins[7] = HAL_GPIO_ReadPin(GPIOD, NOTE_8_Pin);
-	pins[8] = HAL_GPIO_ReadPin(GPIOD, NOTE_9_Pin);
-	pins[9] = HAL_GPIO_ReadPin(GPIOD, NOTE_10_Pin);
-	pins[10] = HAL_GPIO_ReadPin(GPIOD, NOTE_11_Pin);
-	pins[11] = HAL_GPIO_ReadPin(GPIOD, NOTE_12_Pin);
+	if(debounce_pins_1[0] > 10)
+		pins[0] =
+	if(debounce_pins_1[1] > 10)
+		pins[1] = HAL_GPIO_ReadPin(GPIOA, NOTE_2_Pin);
+	if(debounce_pins_1[2] > 10)
+		pins[2] = HAL_GPIO_ReadPin(GPIOA, NOTE_3_Pin);
+	if(debounce_pins_1[3] > 10)
+		pins[3] = HAL_GPIO_ReadPin(GPIOA, NOTE_4_Pin);
+	if(debounce_pins_1[4] > 10)
+		pins[4] = HAL_GPIO_ReadPin(GPIOA, NOTE_5_Pin);
+	if(debounce_pins_1[5] > 10)
+		pins[5] = HAL_GPIO_ReadPin(GPIOA, NOTE_6_Pin);
+	if(debounce_pins_1[6] > 10)
+		pins[6] = HAL_GPIO_ReadPin(GPIOC, NOTE_7_Pin);
+	if(debounce_pins_1[7] > 10)
+		pins[7] = HAL_GPIO_ReadPin(GPIOD, NOTE_8_Pin);
+	if(debounce_pins_1[8] > 10)
+		pins[8] = HAL_GPIO_ReadPin(GPIOD, NOTE_9_Pin);
+	if(debounce_pins_1[9] > 10)
+		pins[9] = HAL_GPIO_ReadPin(GPIOD, NOTE_10_Pin);
+	if(debounce_pins_1[10] > 10)
+		pins[10] = HAL_GPIO_ReadPin(GPIOD, NOTE_11_Pin);
+	if(debounce_pins_1[11] > 10)
+		pins[11] = HAL_GPIO_ReadPin(GPIOD, NOTE_12_Pin);
 }
+
+void checkKeys() {
+	if(debounce_pins_1[12] > 10 && !keys_pressed[0]) {
+		keys_pressed[0] = 1;
+
+		if(currentOSC - 1 < 0) {
+			currentOSC = 4;
+		} else {
+			currentOSC--;
+		}
+	}
+
+	if(debounce_pins_1[13] > 10 && !keys_pressed[1]) {
+		keys_pressed[1] = 1;
+
+		if(currentOctave + 1 > 7) {
+			currentOctave = 1;
+		} else {
+			currentOctave++;
+		}
+	}
+}
+*/
 
 /* USER CODE END PV */
 
@@ -114,14 +161,14 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_I2S3_Init(void);
-static void MX_TIM2_Init(void);
-static void MX_DAC_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_DAC_Init(void);
+static void MX_ADC2_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	checkNotes();
+	//checkNotes();
 }
 
 /* USER CODE END PFP */
@@ -133,11 +180,11 @@ int16_t I2S_dummy[4];
 float sinVal;
 
 
-int keysPressed() {
+int notesPlaying() {
 	int out = 0;
 
 	for(int i = 0; i < NOTES; i++) {
-		if(pins[i]) out++;
+		if(envelopes[i].is_playing || envelopes[i].is_releasing) out++;
 	}
 
 	return out;
@@ -174,11 +221,11 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_I2C1_Init();
-  MX_ADC1_Init();
   MX_I2S3_Init();
-  MX_TIM2_Init();
-  MX_DAC_Init();
   MX_TIM3_Init();
+  MX_DAC_Init();
+  MX_ADC2_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   // Audio stream initiazlization
@@ -195,6 +242,85 @@ int main(void)
 
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t *)I2S_dummy, 4);
 
+  // initialize keys
+  Key key_1 = {.pin_group = GPIOA, .pin = KEY_1_Pin};
+  Key key_2 = {.pin_group = GPIOA, .pin = KEY_2_Pin};
+  Key key_3 = {.pin_group = GPIOA, .pin = KEY_3_Pin};
+  Key key_4 = {.pin_group = GPIOA, .pin = KEY_4_Pin};
+  Key key_5 = {.pin_group = GPIOA, .pin = KEY_5_Pin};
+  Key key_6 = {.pin_group = GPIOB, .pin = KEY_6_Pin};
+  Key key_7 = {.pin_group = GPIOA, .pin = KEY_7_Pin};
+  Key key_8 = {.pin_group = GPIOA, .pin = KEY_8_Pin};
+  Key key_9 = {.pin_group = GPIOA, .pin = KEY_9_Pin};
+  Key key_10 = {.pin_group = GPIOE, .pin = KEY_10_Pin};
+  Key key_11 = {.pin_group = GPIOE, .pin = KEY_11_Pin};
+  Key key_12 = {.pin_group = GPIOE, .pin = KEY_12_Pin};
+  Key key_13 = {.pin_group = GPIOE, .pin = KEY_13_Pin};
+  Key key_14 = {.pin_group = GPIOD, .pin = KEY_15_Pin};
+  Key key_15 = {.pin_group = GPIOD, .pin = KEY_16_Pin};
+  Key key_16 = {.pin_group = GPIOD, .pin = KEY_17_Pin};
+  Key key_17 = {.pin_group = GPIOD, .pin = KEY_18_Pin};
+  Key key_18 = {.pin_group = GPIOD, .pin = KEY_19_Pin};
+
+  keys[0] = key_1;
+  keys[1] = key_2;
+  keys[2] = key_3;
+  keys[3] = key_4;
+  keys[4] = key_5;
+  keys[5] = key_6;
+  keys[6] = key_7;
+  keys[7] = key_8;
+  keys[8] = key_9;
+  keys[9] = key_10;
+  keys[10] = key_11;
+  keys[11] = key_12;
+  keys[12] = key_13;
+  keys[13] = key_14;
+  keys[14] = key_15;
+  keys[15] = key_16;
+  keys[16] = key_17;
+  keys[17] = key_18;
+
+  // set notes keys
+  notes_keys[0] = 0;
+  notes_keys[1] = 2;
+  notes_keys[2] = 1;
+  notes_keys[3] = 3;
+  notes_keys[4] = 5;
+  notes_keys[5] = 6;
+  notes_keys[6] = 9;
+  notes_keys[7] = 10;
+  notes_keys[8] = 11;
+  notes_keys[9] = 14;
+  notes_keys[10] = 12;
+  notes_keys[11] = 16;
+
+  // set the envelopes
+  NoteEnvelope envelope_1 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_2 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_3 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_4 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_5 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_6 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_7 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_8 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_9 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_10 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_11 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+  NoteEnvelope envelope_12 = {.attackTime = 0.01f, .decayTime = 0.01f, .releaseTime = 0.1f, .startAmplitude = 1.0f, .sustainAmplitude = 0.8f};
+
+  envelopes[0] = envelope_1;
+  envelopes[1] = envelope_2;
+  envelopes[2] = envelope_3;
+  envelopes[3] = envelope_4;
+  envelopes[4] = envelope_5;
+  envelopes[5] = envelope_6;
+  envelopes[6] = envelope_7;
+  envelopes[7] = envelope_8;
+  envelopes[8] = envelope_9;
+  envelopes[9] = envelope_10;
+  envelopes[10] = envelope_11;
+  envelopes[11] = envelope_12;
 
   /* USER CODE END 2 */
 
@@ -202,16 +328,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-	  /*
-	  HAL_ADC_Start(&hadc1);
-
-	  if(HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK)
-	  {
-	      volume = (float)HAL_ADC_GetValue(&hadc1)/4095.0f;
-	      CS43_SetVolume(ceil(100.0f * volume));
-	  }
-	   */
 
 
     /* USER CODE END WHILE */
@@ -272,52 +388,52 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief ADC1 Initialization Function
+  * @brief ADC2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_ADC1_Init(void)
+static void MX_ADC2_Init(void)
 {
 
-  /* USER CODE BEGIN ADC1_Init 0 */
+  /* USER CODE BEGIN ADC2_Init 0 */
 
-  /* USER CODE END ADC1_Init 0 */
+  /* USER CODE END ADC2_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
 
-  /* USER CODE BEGIN ADC1_Init 1 */
+  /* USER CODE BEGIN ADC2_Init 1 */
 
-  /* USER CODE END ADC1_Init 1 */
+  /* USER CODE END ADC2_Init 1 */
   /**Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion) 
   */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.ScanConvMode = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  hadc2.Instance = ADC2;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.ScanConvMode = DISABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.DMAContinuousRequests = DISABLE;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
   {
     Error_Handler();
   }
   /**Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time. 
   */
-  sConfig.Channel = ADC_CHANNEL_10;
+  sConfig.Channel = ADC_CHANNEL_15;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN ADC1_Init 2 */
+  /* USER CODE BEGIN ADC2_Init 2 */
 
-  /* USER CODE END ADC1_Init 2 */
+  /* USER CODE END ADC2_Init 2 */
 
 }
 
@@ -446,9 +562,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 35-1;
+  htim2.Init.Prescaler = 200-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 50-1;
+  htim2.Init.Period = 35-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
@@ -540,34 +656,41 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_4, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : NOTE_1_Pin NOTE_2_Pin NOTE_3_Pin NOTE_4_Pin 
-                           NOTE_5_Pin NOTE_6_Pin */
-  GPIO_InitStruct.Pin = NOTE_1_Pin|NOTE_2_Pin|NOTE_3_Pin|NOTE_4_Pin 
-                          |NOTE_5_Pin|NOTE_6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  /*Configure GPIO pins : KEY_10_Pin KEY_11_Pin KEY_12_Pin KEY_13_Pin */
+  GPIO_InitStruct.Pin = KEY_10_Pin|KEY_11_Pin|KEY_12_Pin|KEY_13_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : KEY_1_Pin KEY_2_Pin KEY_3_Pin KEY_4_Pin 
+                           KEY_5_Pin KEY_7_Pin KEY_8_Pin KEY_9_Pin */
+  GPIO_InitStruct.Pin = KEY_1_Pin|KEY_2_Pin|KEY_3_Pin|KEY_4_Pin 
+                          |KEY_5_Pin|KEY_7_Pin|KEY_8_Pin|KEY_9_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : NOTE_7_Pin */
-  GPIO_InitStruct.Pin = NOTE_7_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  /*Configure GPIO pin : KEY_6_Pin */
+  GPIO_InitStruct.Pin = KEY_6_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(NOTE_7_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(KEY_6_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : NOTE_8_Pin NOTE_9_Pin NOTE_10_Pin NOTE_11_Pin 
-                           NOTE_12_Pin */
-  GPIO_InitStruct.Pin = NOTE_8_Pin|NOTE_9_Pin|NOTE_10_Pin|NOTE_11_Pin 
-                          |NOTE_12_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  /*Configure GPIO pins : KEY_15_Pin KEY_16_Pin KEY_17_Pin KEY_18_Pin 
+                           KEY_19_Pin */
+  GPIO_InitStruct.Pin = KEY_15_Pin|KEY_16_Pin|KEY_17_Pin|KEY_18_Pin 
+                          |KEY_19_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
@@ -578,28 +701,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -607,101 +708,186 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	UNUSED(htim);
 
 	if(htim->Instance == TIM2) {
-		if(keysPressed() == 0) {
-			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, 0);
+		pressed = notesPlaying();
+
+		if(pressed == 0) {
+			HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 1);
 		}
 
-		//C, Cs, D, Ds, E, F, Fs , G, Gs, A, Bf, B
-	  if(pins[0]) {
-		  float soundVal = generateWaves(C, time);
+		if(envelopes[0].is_playing || envelopes[0].is_releasing) {
+		  float soundVal = generateWaves(C, time, getOSCType(currentOSC), envelopes[0]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[0] = soundVal;
+		}
+		if(envelopes[1].is_playing || envelopes[1].is_releasing) {
+		  float soundVal = generateWaves(Cs, time, getOSCType(currentOSC), envelopes[1]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[1]) {
-		  float soundVal = generateWaves(Cs, time);
+		  sumValues[1] = soundVal;
+		}
+		if(envelopes[2].is_playing || envelopes[2].is_releasing) {
+		  float soundVal = generateWaves(D, time, getOSCType(currentOSC), envelopes[2]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[2] = soundVal;
+		}
+		if(envelopes[3].is_playing || envelopes[3].is_releasing) {
+		  float soundVal = generateWaves(Ds, time, getOSCType(currentOSC), envelopes[3]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[2]) {
-		  float soundVal = generateWaves(D, time);
+		  sumValues[3] = soundVal;
+		}
+		if(envelopes[4].is_playing || envelopes[4].is_releasing) {
+		  float soundVal = generateWaves(E, time, getOSCType(currentOSC), envelopes[4]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[4] = soundVal;
+		}
+		if(envelopes[5].is_playing || envelopes[5].is_releasing) {
+		  float soundVal = generateWaves(F, time, getOSCType(currentOSC), envelopes[5]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[3]) {
-		  float soundVal = generateWaves(Ds, time);
+		  sumValues[5] = soundVal;
+		}
+		if(envelopes[6].is_playing || envelopes[6].is_releasing) {
+		  float soundVal = generateWaves(Fs, time, getOSCType(currentOSC), envelopes[6]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[6] = soundVal;
+		}
+		if(envelopes[7].is_playing || envelopes[7].is_releasing) {
+		  float soundVal = generateWaves(G, time, getOSCType(currentOSC), envelopes[7]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[4]) {
-		  float soundVal = generateWaves(E, time);
+		  sumValues[7] = soundVal;
+		}
+		if(envelopes[8].is_playing || envelopes[8].is_releasing) {
+		  float soundVal = generateWaves(Gs, time, getOSCType(currentOSC), envelopes[8]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[8] = soundVal;
+		}
+		if(envelopes[9].is_playing || envelopes[9].is_releasing) {
+		  float soundVal = generateWaves(A, time, getOSCType(currentOSC), envelopes[9]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[5]) {
-		  float soundVal = generateWaves(F, time);
+		  sumValues[9] = soundVal;
+		}
+		if(envelopes[10].is_playing || envelopes[10].is_releasing) {
+		  float soundVal = generateWaves(Bf, time, getOSCType(currentOSC), envelopes[10]);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		  sumValues[10] = soundVal;
+		}
+		if(envelopes[11].is_playing || envelopes[11].is_releasing) {
+		  float soundVal = generateWaves(B, time, getOSCType(currentOSC), envelopes[11]);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[6]) {
-		  float soundVal = generateWaves(Fs, time);
+		  sumValues[11] = soundVal;
+		}
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[7]) {
-		  float soundVal = generateWaves(G, time);
+		float DACTemp = 0;
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		for(int i = 0; i < 12; i++) {
+		  DACTemp += sumValues[i]/(float)pressed;
+		}
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[8]) {
-		  float soundVal = generateWaves(Gs, time);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		DACOut = (DACTemp + 1) * 2047;
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[9]) {
-		  float soundVal = generateWaves(A, time);
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, DACOut);
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[10]) {
-		  float soundVal = generateWaves(Bf, time);
+		for(int i = 0; i < NOTES; i++) {
+			 sumValues[i] = 0;
+		}
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+		// global timer
+		time++;
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
-	  if(pins[11]) {
-		  float soundVal = generateWaves(B, time);
+		// envelope timer
+		for(int i = 0; i < 12; i++) {
+			if(envelopes[i].is_playing) {
+				envelopes[i].time += 1.0f/16000.0f;
+			}
 
-		  uint16_t DACOut = (soundVal + 1) * 127;
+			if(envelopes[i].is_releasing) {
+				envelopes[i].time += 1.0f/16000.0f;
 
-		  HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_8B_R, DACOut);
-	  }
+				if(envelopes[i].time > envelopes[i].releaseTime) {
+					envelopes[i].time = 0;
+					envelopes[i].is_releasing = 0;
+				}
+			}
 
-	  time++;
+
+		}
 	}
 
+	// Timer 3 is a timer used for key (click, hold, release) actions
+	// The speed of this timer is 100 loops each second (10 ms for each loop)
 	if(htim->Instance == TIM3) {
-		checkNotes();
+		for(int i = 0; i < KEYS; i++) {
+			// on click
+			if(HAL_GPIO_ReadPin(keys[i].pin_group, keys[i].pin) == GPIO_PIN_SET && keys[i].is_ready == 1) {
+				// your code here, add if for given i
+
+				if(i == 15) {
+					currentOSC--;
+					if(currentOSC < 0) {
+						currentOSC = 5;
+					}
+
+				}
+				if(i == 13) {
+					currentOSC++;
+					currentOSC %= 6;
+				}
+
+				if(i == 8) {
+					currentOctave--;
+					if(currentOctave == 0) {
+						currentOctave = 7;
+					}
+				}
+
+				if(i == 7) {
+					currentOctave++;
+					currentOctave %= 8;
+					if(currentOctave == 0) {
+						currentOctave = 1;
+					}
+				}
+
+				for(int j = 0; j < NOTES; j++) {
+					if(i == notes_keys[j]) {
+						envelopes[j].is_playing = 1;
+						envelopes[j].is_releasing = 0;
+					}
+				}
+
+				keys[i].is_clicked = 1;
+				keys[i].is_ready = 0;
+			}
+
+			// on ready
+			if(HAL_GPIO_ReadPin(keys[i].pin_group, keys[i].pin) == GPIO_PIN_SET && keys[i].is_ready == 0 && keys[i].is_clicked == 0) {
+				// your code
+
+				keys[i].is_ready = 1;
+			}
+
+			// on hold
+			if(HAL_GPIO_ReadPin(keys[i].pin_group, keys[i].pin) == GPIO_PIN_SET && keys[i].is_clicked == 1) {
+				// your code here, add if for given i
+
+			}
+
+			// on release
+			if(HAL_GPIO_ReadPin(keys[i].pin_group, keys[i].pin) == GPIO_PIN_RESET && keys[i].is_clicked == 1) {
+				// your code here, add if for given i
+
+				for(int j = 0; j < NOTES; j++) {
+					if(i == notes_keys[j]) {
+						envelopes[j].is_playing = 0;
+						envelopes[j].is_releasing = 1;
+						envelopes[j].time = 0;
+					}
+				}
+
+				keys[i].is_clicked = 0;
+			}
+		}
 	}
 }
 
